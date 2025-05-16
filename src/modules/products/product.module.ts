@@ -1,17 +1,14 @@
-import { MiddlewareConsumer, Module, NestMiddleware, NestModule } from "@nestjs/common";
-import { productController } from "./product.controller";
-import { ProductService } from "./product.service";
-import { PostgresService } from "src/database/db";
-import { LoggerMiddleware } from "src/middleware";
-import { FsHelper } from "src/helpers/fs.helper";
+import { Module } from '@nestjs/common';
+import { SequelizeModule } from '@nestjs/sequelize';
+import { Product } from './models';
+import { JwtService } from '@nestjs/jwt';
+import { FsHelper, JwtHelper } from 'src/helpers';
+import { ProductController } from './product.controller';
+import { ProductService } from './product.service';
 
 @Module({
-    controllers:[productController],
-    providers:[ProductService,PostgresService,FsHelper]
+  imports: [SequelizeModule.forFeature([Product])],
+  controllers: [ProductController],
+  providers: [JwtService, JwtHelper, ProductService, FsHelper],
 })
-
-export class ProductModule implements NestModule{
-    configure(consumer: MiddlewareConsumer) {
-        consumer.apply(LoggerMiddleware).forRoutes(productController)
-    }
-}
+export class ProductModule {}

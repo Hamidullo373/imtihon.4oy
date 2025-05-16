@@ -1,12 +1,37 @@
-import { Type } from "class-transformer";
-import { IsInt, IsPositive, IsString, MinLength } from "class-validator";
+import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsString, IsNumber, IsPositive } from 'class-validator';
 
-export class updateProductDto {
-    @IsString()
-    @MinLength(4)
-    name:string;
+export class UpdateProductDto {
+  @ApiProperty({
+    type: 'string',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  name?: string;
 
-    @Type(()=>Number)
-    @IsPositive()
-    price:number;
+  @ApiProperty({
+    type: 'number',
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  price?: number;
+
+  @ApiProperty({
+    type: 'string',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({
+    type: 'string',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  category?: string;
 }

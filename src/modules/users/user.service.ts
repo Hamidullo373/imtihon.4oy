@@ -9,16 +9,12 @@ import { InjectModel } from '@nestjs/sequelize';
 import * as bcrypt from 'bcryptjs';
 import { User } from './models';
 import { CreateUserDto, GetAllUsersQueryDto, UpdateUserDto } from './dtos';
-// import { FsHelper } from 'src/helpers';
 import { UserRoles } from './enums';
 import { Op } from 'sequelize';
 
 @Injectable()
 export class UserService implements OnModuleInit {
-  constructor(
-    @InjectModel(User) private userModel: typeof User,
-    // private fsHelper: FsHelper,
-  ) {}
+  constructor(@InjectModel(User) private userModel: typeof User) {}
 
   async onModuleInit() {
     await this.seedUsers();

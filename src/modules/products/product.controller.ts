@@ -4,52 +4,58 @@ import {
   Delete,
   Get,
   Param,
-  ParseFilePipe,
+  ParseIntPipe,
+  Patch,
   Post,
-  Put,
   Query,
-  UploadedFile,
-  UseInterceptors,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
-import { createProductDuo } from './dtos/create-products';
-import { updateProductDto } from './dtos/update-product.dto';
-import { productParamsDuo } from './dtos/product.params';
-import { GetAllProductsQueryDuo } from './dtos/product.params.dtos';
-import { CheckFileSizePipe } from 'src/pipes/check.file.pipe';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { fileURLToPath } from 'node:url';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  CreateProductDto,
+  GetAllProductsQueryDto,
+  UpdateProductDto,
+} from './dtos';
+import { Protected, Roles } from '@decorators';
+import { UserRoles } from './enums';
 
+@ApiBearerAuth()
 @Controller('products')
-export class productController {
-  constructor(private readonly productService: ProductService) {}
+export class ProductController {
+  constructor(private service: ProductService) {}
 
+  @ApiOperation({ summary: 'Barcha productlarni olish' })
   @Get()
-  async getAllProducts(@Query() query: GetAllProductsQueryDuo) {
-    return await this.productService.getAllProducts(query);
+  @Protected(true)
+  @Roles([UserRoles.ADMIN])
+  async getAll(@Query() queries: GetAllProductsQueryDto) {
+    return await this.service.getAll(queries);
   }
 
+  @ApiOperation({ summary: 'Product yaratish' })
   @Post()
-  @UseInterceptors(FileInterceptor('image'))
-  async createProduct(
-    @Body() body: createProductDuo,
-    @UploadedFile(new CheckFileSizePipe(1200000)) image: Express.Multer.File,
-  ) {
-    return await this.productService.createProduct(body, image);
+  @Protected(true)
+  @Roles([UserRoles.ADMIN])
+  async create(@Body() payload: CreateProductDto) {
+    return await this.service.create(payload);
   }
 
-  @Put(':id')
-  @UseInterceptors(FileInterceptor('image'))
-  async updateProduct(
-    @Body() body: updateProductDto,
-    @Param() param: productParamsDuo,
-    @UploadedFile(new CheckFileSizePipe(120000)) image: Express.Multer.File,
+  @ApiOperation({ summary: 'Product yangilash' })
+  @Patch(':id')
+  @Protected(true)
+  @Roles([UserRoles.ADMIN, UserRoles.USER])
+  async update(
+    @Body() payload: UpdateProductDto,
+    @Param('id', ParseIntPipe) id: number,
   ) {
-    return await this.productService.updateProduct(body, param?.id, image);
+    return await this.service.update(id, payload);
   }
 
+  @ApiOperation({ summary: "Product o'chirish" })
   @Delete(':id')
-  async deleteProduct(@Param() param: productParamsDuo) {
-    return await this.productService.deleteProduct(param?.id);
+  @Protected(true)
+  @Roles([UserRoles.ADMIN])
+  async delete(@Param('id', ParseIntPipe) id: number) {
+    return await this.service.delete(id);
   }
 }

@@ -1,82 +1,132 @@
-import { BadRequestException, ConflictException, Injectable, OnModuleInit } from "@nestjs/common";
-import { PostgresService } from "src/database/db";
-import { productModelTable } from "./model/product.model";
-import { IProduct, IProductUpdate } from "./interface/product.interface";
-import { FsHelper } from "src/helpers/fs.helper";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { Product } from './models';
+import {
+  CreateProductDto,
+  GetAllProductsQueryDto,
+  UpdateProductDto,
+} from './dtos';
+import { Op } from 'sequelize';
 
 @Injectable()
-export class ProductService implements OnModuleInit{
-    constructor(private readonly pg:PostgresService,
-            private readonly fs:FsHelper
-     ){}
+export class ProductService implements OnModuleInit {
+  constructor(@InjectModel(Product) private productModel: typeof Product) {}
 
-    async onModuleInit() {
-        try {
-            await this.pg.query(productModelTable,[])
-            console.log("Product table yaratildi")
-        } catch (error) {
-            console.log("Product table yaratishda xatolik!")  
-        }
+  async onModuleInit() {
+    await this.seedProducts();
+  }
+
+  async getAll(queries: GetAllProductsQueryDto) {
+    let filters: any = {};
+
+    if (queries.category) {
+      filters.category = {
+        [Op.eq]: queries.category,
+      };
     }
 
-    async getAllProducts(query){
-        const sortF = query.sortField || 'price';
-        const sortO = query.sortOrder || 'asc';
-        const limit = query.limit || 10;
-        const page = query.page || 1;
-        const offset = (page - 1) * limit;
+    const { count, rows: products } = await this.productModel.findAndCountAll({
+      limit: queries.limit || 10,
+      offset: (queries.page - 1) * queries.limit || 0,
+      order: queries.sortField
+        ? [[queries.sortField, queries.sortOrder || 'DESC']]
+        : null,
+      where: { ...filters },
+      attributes: queries.fields,
+    });
 
-
-        const products = await this.pg.query(`SELECT * FROM products ORDER BY ${sortF} ${sortO} LIMIT $1 OFFSET $2`,[limit,offset]);
-        return {
-            message:"success",
-            count:products.length,
-            data:products
-        }
-    }
-
-    async createProduct(payload:IProduct,image:Express.Multer.File){
-        const foundedProduct = await this.pg.query("SELECT * FROM  products WHERE name = $1;",[payload.name]);
-        if(foundedProduct.length!= 0){
-            throw new ConflictException("This product is already exist!")
-        };
-        const productImage = await this.fs.uploadFile(image)
-        let fileUrl = productImage.fileUrl.split('\\');
-        
-        const product = await this.pg.query("INSERT INTO products (name,price,category_id,file_url) VALUES ($1,$2,$3,$4) RETURNING *;",
-        [payload.name,payload.price,payload.category_id,fileUrl.at(-1)])
-        return {
-            message:"Successfully created!",
-            data:product
-        }
-    }
-
-    async updateProduct(payload:IProductUpdate,id:number,image:Express.Multer.File){
-        const foundedProduct = await this.pg.query("SELECT * FROM products WHERE id = $1",[id]);
-        if(foundedProduct.length==0){
-            throw new BadRequestException("This product does not exists!")
-        };
-        await this.fs.deleteFile(foundedProduct[0].file_url);
-        let productImage = await this.fs.uploadFile(image)
-        let fileUrl = productImage.fileUrl.split('\\');
-
-        const product = await this.pg.query("UPDATE products SET name = $1,price = $2,file_url=$3 WHERE id = $4 RETURNING *;",
-            [payload.name,payload.price,fileUrl.at(-1),id]);
-        return {
-            message:"Successfully updated!",
-            data:product
-        }
+    return {
+      count,
+      limit: queries.limit || 5,
+      page: queries.page || 1,
+      data: products,
     };
+  }
 
-    async deleteProduct(id:number){
-        const foundedProduct = await this.pg.query("SELECT * FROM products WHERE id = $1",[id]);
-        if(foundedProduct.length==0){
-            throw new BadRequestException("This product does not exists!")
-        };
-        await this.fs.deleteFile(foundedProduct[0].file_url);
-        const product = await this.pg.query("DELETE FROM products WHERE id = $1;",[id]);
-        return {
-            message:"Successfully deleted!"
-        }
+  async create(payload: CreateProductDto) {
+    const foundedProduct = await this.productModel.findOne({
+      where: { name: payload.name },
+    });
+
+    if (foundedProduct) {
+      throw new ConflictException('Bunday nomli mahsulot mavjud');
     }
+
+    const product = await this.productModel.create({
+      name: payload.name,
+      description: payload.description,
+      price: payload.price,
+      category: payload.category,
+    });
+
+    return {
+      message: 'Mahsulot yaratildi',
+      data: product,
+    };
+  }
+
+  async update(id: number, payload: UpdateProductDto) {
+    const foundedProduct = await this.productModel.findByPk(id);
+
+    if (!foundedProduct) {
+      throw new ConflictException('Mahsulot topilmadi');
+    }
+
+    const [count, [updatedProduct]] = await this.productModel.update(
+      {
+        name: payload.name,
+        description: payload.description,
+        price: payload.price,
+        category: payload.category,
+      },
+      { where: { id }, returning: true },
+    );
+
+    return {
+      message: 'Mahsulot yangilandi',
+      data: updatedProduct,
+    };
+  }
+
+  async delete(id: number) {
+    const foundedProduct = await this.productModel.findByPk(id);
+
+    if (!foundedProduct) throw new NotFoundException('Mahsulot topilmadi');
+
+    await this.productModel.destroy({ where: { id } });
+
+    return {
+      message: "Mahsulot o'chirildi",
+      data: foundedProduct,
+    };
+  }
+
+  async seedProducts() {
+    const defaultProducts = [
+      {
+        name: 'Example Product',
+        description: 'Misol uchun mahsulot',
+        price: 100,
+        category: 'General',
+      },
+    ];
+
+    for (let product of defaultProducts) {
+      const foundedProduct = await this.productModel.findOne({
+        where: { name: product.name },
+      });
+
+      if (!foundedProduct) {
+        await this.productModel.create(product);
+      }
+    }
+
+    console.log('Mahsulotlar bazasi tayyorlandi ✅');
+  }
 }

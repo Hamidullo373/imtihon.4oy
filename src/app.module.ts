@@ -6,6 +6,7 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
 import { APP_GUARD } from '@nestjs/core';
 import { CheckAuthGuard, CheckRolesGuard } from '@guards';
 import { JwtHelper } from '@helpers';
+import { ProductModule } from '@modules';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { JwtHelper } from '@helpers';
       autoLoadModels: true,
     }),
     UserModule,
+    ProductModule,
   ],
   providers: [
     {
